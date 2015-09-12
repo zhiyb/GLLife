@@ -11,10 +11,6 @@
 
 GLWidget::GLWidget(QWidget *parent) : QOpenGLWidget(parent)
 {
-	data.vertex.push_back(QVector2D(1.0, 1.0));
-	data.vertex.push_back(QVector2D(1.0, -1.0));
-	data.vertex.push_back(QVector2D(-1.0, -1.0));
-	data.vertex.push_back(QVector2D(-1.0, 1.0));
 	data.zoom = 0;
 	data.moveX = 0;
 	data.moveY = 0;
@@ -24,9 +20,9 @@ GLWidget::GLWidget(QWidget *parent) : QOpenGLWidget(parent)
 
 	QSurfaceFormat fmt = format();
 	fmt.setSamples(0);
-	fmt.setVersion(3, 3);
-	fmt.setOption(QSurfaceFormat::DeprecatedFunctions);
-	fmt.setProfile(QSurfaceFormat::CompatibilityProfile);
+	fmt.setVersion(4, 0);
+	fmt.setOption(0);
+	fmt.setProfile(QSurfaceFormat::CoreProfile);
 	fmt.setDepthBufferSize(0);
 	fmt.setStencilBufferSize(0);
 	fmt.setAlphaBufferSize(0);
@@ -46,41 +42,37 @@ void GLWidget::initializeGL()
 	initializeOpenGLFunctions();
 	qDebug() << format();
 
-	glDisable(GL_MULTISAMPLE);
-	glDisable(GL_BLEND);
-	glDisable(GL_DEPTH_TEST);
-	glDisable(GL_STENCIL_TEST);
-	glDisable(GL_SCISSOR_TEST);
-	glClearColor(0.0, 0.0, 0.0, 1.0);
+	glGenVertexArrays(1, &data.vao);
+	glBindVertexArray(data.vao);
+	GLint vertices[4][2] = {{1, 1}, {1, -1}, {-1, -1}, {-1, 1}};
+	glGenBuffers(1, &data.buffer);
+	glBindBuffer(GL_ARRAY_BUFFER, data.buffer);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
-	data.program = glCreateProgram();
-
-	qDebug("Loading vertex shader...");
-	data.vsh = loadShaderFile(GL_VERTEX_SHADER, RESPFX "vertex.vsh");
-	qDebug("Loading fragment shader...");
-	data.fsh = loadShaderFile(GL_FRAGMENT_SHADER, RESPFX "display.fsh");
-	if (data.vsh == 0 || data.fsh == 0)
+	shader_info_t shaders[] = {
+		{GL_VERTEX_SHADER, RESPFX "vertex.vsh"},
+		{GL_FRAGMENT_SHADER, RESPFX "display.fsh"},
+		{GL_NONE, 0}
+	};
+	data.program = loadShaders(shaders);
+	if (!data.program) {
+		qApp->quit();
 		return;
-
-	glAttachShader(data.program, data.vsh);
-	glAttachShader(data.program, data.fsh);
-	qDebug() << "Linking program...";
-	glLinkProgram(data.program);
-
-	int logLength;
-	glGetProgramiv(data.program, GL_INFO_LOG_LENGTH, &logLength);
-	char log[logLength];
-	glGetProgramInfoLog(data.program, logLength, &logLength, log);
-	qWarning(log);
+	}
 
 	data.loc.vertex = glGetAttribLocation(data.program, "vertex");
 	data.loc.projection = glGetUniformLocation(data.program, "projection");
-	data.loc.dim = glGetUniformLocation(data.program, "DIM");
-	data.loc.zoom = glGetUniformLocation(data.program, "zoom");
-	data.loc.animation = glGetUniformLocation(data.program, "animation");
-	data.loc.position = glGetUniformLocation(data.program, "position");
-	glEnableVertexAttribArray(data.loc.vertex);
+	data.loc.colour = glGetUniformLocation(data.program, "colour");
+	//data.loc.dim = glGetUniformLocation(data.program, "DIM");
+	//data.loc.zoom = glGetUniformLocation(data.program, "zoom");
+	//data.loc.animation = glGetUniformLocation(data.program, "animation");
+	//data.loc.position = glGetUniformLocation(data.program, "position");
 	glUseProgram(data.program);
+	glUniform3i(data.loc.colour, 102, 204, 255);
+	glVertexAttribIPointer(data.loc.vertex, 2, GL_INT, 0, 0/*sdata.vertices*/);
+	glEnableVertexAttribArray(data.loc.vertex);
+
+	glClearColor(0.0, 0.0, 0.0, 1.0);
 }
 
 void GLWidget::resizeGL(int w, int h)
@@ -93,6 +85,7 @@ void GLWidget::resizeGL(int w, int h)
 
 void GLWidget::paintGL()
 {
+#if 0
 	double posX = (data.moveX + 1.) * float(DIM / 2);
 	double posY = (data.moveY - 1.) * float(DIM / 2) * -1.;
 	glUniform1ui(data.loc.dim, DIM);
@@ -104,11 +97,13 @@ void GLWidget::paintGL()
 		glUniform1f((float)data.loc.animation, QTime::currentTime().msec() / 1000.);
 		update();
 	}
+#endif
 
 	glUniformMatrix4fv(data.loc.projection, 1, GL_FALSE, data.projection.constData());
 	glClear(GL_COLOR_BUFFER_BIT);
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-	glFinish();
+	glFlush();
+	//glFinish();
 #if 0
 	if (!data.saving)
 		return;
@@ -237,21 +232,26 @@ void GLWidget::updateTitle()
 GLuint GLWidget::loadShader(GLenum type, const QByteArray& context)
 {
 	GLuint shader = glCreateShader(type);
+	if (shader == 0) {
+		qWarning("Cannot create OpenGL shader.");
+		return 0;
+	}
 	const char *p = context.constData();
-	int length = context.length();
+	GLint length = context.length();
 	glShaderSource(shader, 1, &p, &length);
 	glCompileShader(shader);
 
-	int status;
-	glGetShaderiv(shader, GL_COMPILE_STATUS, &status);
-
-	int logLength;
+	GLint logLength;
 	glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &logLength);
 	char log[logLength];
 	glGetShaderInfoLog(shader, logLength, &logLength, log);
 	qWarning(log);
+
+	GLint status;
+	glGetShaderiv(shader, GL_COMPILE_STATUS, &status);
 	if (status == GL_TRUE)
 		return shader;
+	qWarning("Shader compilation failed.");
 	glDeleteShader(shader);
 	return 0;
 }
@@ -266,4 +266,50 @@ GLuint GLWidget::loadShaderFile(GLenum type, QString path)
 	QByteArray context = f.readAll();
 	f.close();
 	return loadShader(type, context);
+}
+
+GLuint GLWidget::loadShaders(GLWidget::shader_info_t *shaders)
+{
+	GLuint program = glCreateProgram();
+	if (program == 0) {
+		qWarning("Cannot create OpenGL program.");
+		return 0;
+	}
+
+	GLsizei count;
+	for (count = 0; shaders->type != GL_NONE && shaders->path != 0; shaders++, count++) {
+		qDebug(QString("Loading shader source: %1...").arg(shaders->path).toLocal8Bit());
+		GLuint shader = loadShaderFile(shaders->type, shaders->path);
+		if (shader == 0)
+			goto failed;
+		glAttachShader(program, shader);
+	}
+	qDebug("Linking program...");
+	glLinkProgram(program);
+
+	{	// Cross initialisation error
+		// Get program linking log
+		GLint logLength;
+		glGetProgramiv(program, GL_INFO_LOG_LENGTH, &logLength);
+		char log[logLength];
+		glGetProgramInfoLog(program, logLength, &logLength, log);
+		qWarning(log);
+	}
+
+failed:
+	// Shaders can be detach and deleted after program linked
+	GLuint sh[count], *shp = sh;
+	glGetAttachedShaders(data.program, count, &count, sh);
+	while (count--) {
+		glDetachShader(program, *shp);
+		glDeleteShader(*shp++);
+	}
+
+	// Check program linking status
+	GLint status;
+	glGetProgramiv(program, GL_LINK_STATUS, &status);
+	if (status == GL_TRUE)
+		return program;
+	glDeleteProgram(program);
+	return 0;
 }

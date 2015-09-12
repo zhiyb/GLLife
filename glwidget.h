@@ -2,9 +2,9 @@
 #define GLWIDGET_H
 
 #include <QtWidgets>
-#include <QOpenGLFunctions_3_3_Core>
+#include <QOpenGLFunctions_4_0_Core>
 
-class GLWidget : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core
+class GLWidget : public QOpenGLWidget, protected QOpenGLFunctions_4_0_Core
 {
 	Q_OBJECT
 public:
@@ -23,18 +23,26 @@ protected:
 	void keyPressEvent(QKeyEvent *e);
 
 private:
+	struct shader_info_t {
+		GLenum type;
+		const char *path;
+	};
+
 	void updateTitle();
 	GLuint loadShader(GLenum type, const QByteArray& context);
 	GLuint loadShaderFile(GLenum type, QString path);
+	GLuint loadShaders(shader_info_t *shaders);
 
 	struct data_t {
 		struct loc_t {
 			GLint vertex, projection;
-			GLint zoom, position;
-			GLint dim, animation;
+			//GLint zoom, position;
+			//GLint dim, animation;
+			GLuint colour;
 		} loc;
 		bool pause;
 		GLuint program, fsh, vsh;
+		GLuint vao, buffer;
 		GLfloat zoom;
 		GLdouble moveX, moveY;
 		QPoint prevPos;
