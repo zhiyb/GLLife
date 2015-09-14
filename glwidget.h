@@ -18,7 +18,7 @@ protected:
 	void resizeGL(int w, int h);
 	void paintGL();
 	void wheelEvent(QWheelEvent *e);
-	void mousePressEvent(QMouseEvent *e) {data.prevPos = e->pos();}
+	void mousePressEvent(QMouseEvent *e);
 	void mouseMoveEvent(QMouseEvent *e);
 	void keyPressEvent(QKeyEvent *e);
 
@@ -34,45 +34,41 @@ private:
 	GLuint loadShaders(shader_info_t *shaders);
 	GLuint loadTexture(QString filepath, GLuint *width, GLuint *height);
 
-	struct data_t {
-		struct {
-			struct loc_t {
-				GLint vertex, projection;
-			} loc;
-			struct data_t {
-				GLuint vao, aBuffer;
-			} data;
-			GLuint buffer;
-			GLuint program;
-		} bin;		// Binarization
+	struct bin_t {
+		struct loc_t {
+			GLint vertex, width, projection;
+		} loc;
+		struct data_t {
+			GLuint vao, aBuffer;
+		} data;
+		GLuint buffer;
+		GLuint program;
+	} bin;		// Binarization
 
-		struct {
-			struct loc_t {
-				GLint vertex, projection;
-			} loc;
-			struct data_t {
-				GLuint vao, aBuffer;
-			} data;
-			GLuint buffer;
-			GLuint program;
-		} render;	// Render to screen
+	struct render_t {
+		struct loc_t {
+			GLint vertex, width, projection;
+		} loc;
+		struct data_t {
+			GLuint vao, aBuffer;
+		} data;
+		GLuint buffer;
+		GLuint program;
+	} render;	// Render to screen
 
-		struct texture_t {
-			struct {
-				GLuint width, height;
-				GLuint orig;
-				GLuint bin;
-			} debug;
-		} texture;
+	struct texture_t {
+		struct debug_t {
+			GLuint width, height;
+			GLuint orig;
+			GLuint bin;
+		} debug;
+	} texture;
 
-		bool pause;
-		//GLuint vao, buffer, texture;
-		GLfloat zoom;
-		GLdouble moveX, moveY;
-		QPoint prevPos;
-		QVector<QVector2D> vertex;
-		QMatrix4x4 projection;
-	} data;
+	bool pause;
+	GLfloat zoom;
+	GLdouble moveX, moveY;
+	QPoint prevPos;
+	QMatrix4x4 projection;
 };
 
 #endif // GLWIDGET_H

@@ -1,6 +1,7 @@
 #version 430 core
 
 layout (location = 0) in ivec2 vertex;
+uniform int width;
 uniform mat4 projection;
 
 out vec2 texCoord;

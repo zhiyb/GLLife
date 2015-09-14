@@ -11,9 +11,9 @@
 
 GLWidget::GLWidget(QWidget *parent) : QOpenGLWidget(parent)
 {
-	data.zoom = 0;
-	data.moveX = 0;
-	data.moveY = 0;
+	zoom = 0;
+	moveX = 0;
+	moveY = 0;
 
 	QSurfaceFormat fmt = format();
 	fmt.setSamples(0);
@@ -47,23 +47,24 @@ void GLWidget::initializeGL()
 		{GL_FRAGMENT_SHADER, RES_SHADER_PFX "render.fsh"},
 		{GL_NONE, 0}
 	};
-	if ((data.render.program = loadShaders(render_shaders)) == 0) {
+	if ((render.program = loadShaders(render_shaders)) == 0) {
 		qApp->quit();
 		return;
 	}
-	glUseProgram(data.render.program);
+	glUseProgram(render.program);
 
-	glGenVertexArrays(1, &data.render.data.vao);
-	glBindVertexArray(data.render.data.vao);
+	glGenVertexArrays(1, &render.data.vao);
+	glBindVertexArray(render.data.vao);
 	GLint vertices[4][2] = {{1, 1}, {-1, 1}, {-1, -1}, {1, -1}};
-	glGenBuffers(1, &data.render.data.aBuffer);
-	glBindBuffer(GL_ARRAY_BUFFER, data.render.data.aBuffer);
+	glGenBuffers(1, &render.data.aBuffer);
+	glBindBuffer(GL_ARRAY_BUFFER, render.data.aBuffer);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
-	data.render.loc.vertex = glGetAttribLocation(data.render.program, "vertex");
-	data.render.loc.projection = glGetUniformLocation(data.render.program, "projection");
-	glVertexAttribIPointer(data.render.loc.vertex, 2, GL_INT, 0, 0);
-	glEnableVertexAttribArray(data.render.loc.vertex);
+	render.loc.vertex = glGetAttribLocation(render.program, "vertex");
+	render.loc.width = glGetAttribLocation(render.program, "width");
+	render.loc.projection = glGetUniformLocation(render.program, "projection");
+	glVertexAttribIPointer(render.loc.vertex, 2, GL_INT, 0, 0);
+	glEnableVertexAttribArray(render.loc.vertex);
 
 	// Initialise binarization program
 	shader_info_t bin_shaders[] = {
@@ -71,41 +72,43 @@ void GLWidget::initializeGL()
 		{GL_FRAGMENT_SHADER, RES_SHADER_PFX "binarization.fsh"},
 		{GL_NONE, 0}
 	};
-	if ((data.bin.program = loadShaders(bin_shaders)) == 0) {
+	if ((bin.program = loadShaders(bin_shaders)) == 0) {
 		qApp->quit();
 		return;
 	}
-	glUseProgram(data.bin.program);
+	glUseProgram(bin.program);
 
 	// Using the same set of data as render program
-	data.bin.data.vao = data.render.data.vao;
-	data.bin.data.aBuffer = data.render.data.aBuffer;
+	bin.data.vao = render.data.vao;
+	bin.data.aBuffer = render.data.aBuffer;
 
-	data.bin.loc.vertex = glGetAttribLocation(data.bin.program, "vertex");
-	data.bin.loc.projection = glGetUniformLocation(data.bin.program, "projection");
-	glVertexAttribIPointer(data.bin.loc.vertex, 2, GL_INT, 0, 0);
-	glEnableVertexAttribArray(data.bin.loc.vertex);
+	bin.loc.vertex = glGetAttribLocation(bin.program, "vertex");
+	bin.loc.width = glGetAttribLocation(render.program, "width");
+	bin.loc.projection = glGetUniformLocation(bin.program, "projection");
+	glVertexAttribIPointer(bin.loc.vertex, 2, GL_INT, 0, 0);
+	glEnableVertexAttribArray(bin.loc.vertex);
 
 	// Generate textures
-	data.texture.debug.orig = loadTexture(":/texture.png", &data.texture.debug.width, &data.texture.debug.height);
-	glGenTextures(1, &data.texture.debug.bin);
-	glBindTexture(GL_TEXTURE_2D, data.texture.debug.bin);
+	texture.debug.orig = loadTexture(":/texture.png", &texture.debug.width, &texture.debug.height);
+	glGenTextures(1, &texture.debug.bin);
+	glBindTexture(GL_TEXTURE_2D, texture.debug.bin);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, data.texture.debug.width, data.texture.debug.height, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, texture.debug.width, texture.debug.height, 0, GL_RED, GL_UNSIGNED_BYTE, 0);
 
 	// Render binarized texture
 	GLuint fbo;
 	glGenFramebuffers(1, &fbo);
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo);
-	glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, data.texture.debug.bin, 0);
+	glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture.debug.bin, 0);
 
-	glViewport(0, 0, data.texture.debug.width, data.texture.debug.height);
+	glViewport(0, 0, texture.debug.width, texture.debug.height);
 	glClear(GL_COLOR_BUFFER_BIT);
-	glUseProgram(data.bin.program);
-	glBindVertexArray(data.bin.data.vao);
-	glBindTexture(GL_TEXTURE_2D, data.texture.debug.orig);
-	glUniformMatrix4fv(data.bin.loc.projection, 1, GL_FALSE, QMatrix4x4().constData());
+	glUseProgram(bin.program);
+	glBindVertexArray(bin.data.vao);
+	glBindTexture(GL_TEXTURE_2D, texture.debug.orig);
+	glUniform1i(bin.loc.width, texture.debug.width);
+	glUniformMatrix4fv(bin.loc.projection, 1, GL_FALSE, QMatrix4x4().constData());
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 	glFlush();
 
@@ -118,8 +121,8 @@ void GLWidget::resizeGL(int w, int h)
 {
 	glViewport(0, 0, w, h);
 	float asp = (float)h / (float)w;
-	data.projection.setToIdentity();
-	data.projection.ortho(-1, 1, -asp, asp, -1, 1);
+	projection.setToIdentity();
+	projection.ortho(-1, 1, -asp, asp, -1, 1);
 }
 
 void GLWidget::paintGL()
@@ -138,37 +141,47 @@ void GLWidget::paintGL()
 	}
 #endif
 
-	glUseProgram(data.render.program);
-	glBindVertexArray(data.render.data.vao);
-	glBindTexture(GL_TEXTURE_2D, data.texture.debug.orig);
-	glUniformMatrix4fv(data.render.loc.projection, 1, GL_FALSE, data.projection.constData());
+	glUseProgram(render.program);
+	glBindVertexArray(render.data.vao);
+	glBindTexture(GL_TEXTURE_2D, texture.debug.orig);
+	glUniform1i(render.loc.width, width());
+	glUniformMatrix4fv(render.loc.projection, 1, GL_FALSE, projection.constData());
 	glClear(GL_COLOR_BUFFER_BIT);
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-	QMatrix4x4 projection(data.projection);
-	projection.translate(1. - 0.25, -(1. - 0.25), 0);
-	projection.scale(0.25);
-	glUniformMatrix4fv(data.render.loc.projection, 1, GL_FALSE, projection.constData());
-	glBindTexture(GL_TEXTURE_2D, data.texture.debug.bin);
+	QMatrix4x4 proj(projection);
+	proj.translate(1. - 0.25, -(1. - 0.25), 0);
+	proj.scale(0.25);
+	glUniformMatrix4fv(render.loc.projection, 1, GL_FALSE, proj.constData());
+	glBindTexture(GL_TEXTURE_2D, texture.debug.bin);
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 	glFlush();
 }
 
 void GLWidget::wheelEvent(QWheelEvent *e)
 {
-	float zoom = -(float)e->angleDelta().y() / 120. * ZOOMSTEP;
-	data.zoom += zoom;
+	zoom += -(float)e->angleDelta().y() / 120. * ZOOMSTEP;
 	updateTitle();
 	update();
+	QOpenGLWidget::wheelEvent(e);
+}
+
+void GLWidget::mousePressEvent(QMouseEvent *e)
+{
+	prevPos = e->pos();
+	e->accept();
+	QOpenGLWidget::mousePressEvent(e);
 }
 
 void GLWidget::mouseMoveEvent(QMouseEvent *e)
 {
-	QPointF p = e->pos() - data.prevPos;
-	data.moveX += -p.x() * 2.f * pow(2, data.zoom) / (double)width();
-	data.moveY += p.y() * 2.f * pow(2, data.zoom) / (double)width();
-	data.prevPos = e->pos();
+	QPointF p = e->pos() - prevPos;
+	moveX += -p.x() * 2.f * pow(2, zoom) / (double)width();
+	moveY += p.y() * 2.f * pow(2, zoom) / (double)width();
+	prevPos = e->pos();
 	updateTitle();
 	update();
+	e->accept();
+	QOpenGLWidget::mouseMoveEvent(e);
 }
 
 void GLWidget::keyPressEvent(QKeyEvent *e)
@@ -185,38 +198,43 @@ void GLWidget::keyPressEvent(QKeyEvent *e)
 		return;
 	case 'p':	// Pause
 	case 'P':
-		data.pause = !data.pause;
+		pause = !pause;
 		break;
 	case Qt::Key_Up:
-		data.moveY += -moveTh * 2.f * pow(2, data.zoom) / (double)width();
+		moveY += -moveTh * 2.f * pow(2, zoom) / (double)width();
 		break;
 	case Qt::Key_Down:
-		data.moveY += moveTh * 2.f * pow(2, data.zoom) / (double)width();
+		moveY += moveTh * 2.f * pow(2, zoom) / (double)width();
 		break;
 	case Qt::Key_Left:
-		data.moveX += moveTh * 2.f * pow(2, data.zoom) / (double)width();
+		moveX += moveTh * 2.f * pow(2, zoom) / (double)width();
 		break;
 	case Qt::Key_Right:
-		data.moveX += -moveTh * 2.f * pow(2, data.zoom) / (double)width();
+		moveX += -moveTh * 2.f * pow(2, zoom) / (double)width();
 		break;
 	case '+':	// Zoom in
 	case '=':
-		data.zoom -= ZOOMSTEP;
+		zoom -= ZOOMSTEP;
 		break;
 	case '-':	// Zoom out
 	case '_':
-		data.zoom += ZOOMSTEP;
+		zoom += ZOOMSTEP;
 		break;
+	default:
+		goto skip;
 	};
 	updateTitle();
 	update();
+	e->accept();
+skip:
+	QOpenGLWidget::keyPressEvent(e);
 }
 
 void GLWidget::updateTitle()
 {
 	emit titleUpdate(tr("GLLife <(%1, %2) * %3> %4")
-			 .arg(data.moveX).arg(data.moveY).arg(1. / pow(2, data.zoom))
-			 .arg(data.pause ? tr("[Paused] ") : tr("")));
+			 .arg(moveX).arg(moveY).arg(1. / pow(2, zoom))
+			 .arg(pause ? tr("[Paused] ") : tr("")));
 }
 
 GLuint GLWidget::loadShader(GLenum type, const QByteArray& context)
