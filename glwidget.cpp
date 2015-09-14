@@ -5,7 +5,7 @@
 #include <QVBoxLayout>
 #include "glwidget.h"
 
-#define RESPFX		":/shaders/"
+#define RES_SHADER_PFX	":/shaders/"
 #define ZOOMSTEP	0.25
 #define DIM		640
 
@@ -14,9 +14,6 @@ GLWidget::GLWidget(QWidget *parent) : QOpenGLWidget(parent)
 	data.zoom = 0;
 	data.moveX = 0;
 	data.moveY = 0;
-	data.vsh = 0;
-	data.fsh = 0;
-	data.program = 0;
 
 	QSurfaceFormat fmt = format();
 	fmt.setSamples(0);
@@ -44,43 +41,77 @@ void GLWidget::initializeGL()
 
 	glClearColor(0.0, 0.0, 0.0, 1.0);
 
-	glGenVertexArrays(1, &data.vao);
-	glBindVertexArray(data.vao);
-	GLint vertices[4][2] = {{1, 1}, {-1, 1}, {-1, -1}, {1, -1}};
-	glGenBuffers(1, &data.buffer);
-	glBindBuffer(GL_ARRAY_BUFFER, data.buffer);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-	shader_info_t shaders[] = {
-		{GL_VERTEX_SHADER, RESPFX "vertex.vsh"},
-		{GL_FRAGMENT_SHADER, RESPFX "display.fsh"},
+	// Initialise render to screen program
+	shader_info_t render_shaders[] = {
+		{GL_VERTEX_SHADER, RES_SHADER_PFX "vertex.vsh"},
+		{GL_FRAGMENT_SHADER, RES_SHADER_PFX "render.fsh"},
 		{GL_NONE, 0}
 	};
-	data.program = loadShaders(shaders);
-	if (!data.program) {
+	if ((data.render.program = loadShaders(render_shaders)) == 0) {
 		qApp->quit();
 		return;
 	}
+	glUseProgram(data.render.program);
 
-	data.loc.vertex = glGetAttribLocation(data.program, "vertex");
-	data.loc.projection = glGetUniformLocation(data.program, "projection");
-	data.loc.colour = glGetUniformLocation(data.program, "colour");
-	//data.loc.dim = glGetUniformLocation(data.program, "DIM");
-	//data.loc.zoom = glGetUniformLocation(data.program, "zoom");
-	//data.loc.animation = glGetUniformLocation(data.program, "animation");
-	//data.loc.position = glGetUniformLocation(data.program, "position");
-	glUseProgram(data.program);
-	glUniform3i(data.loc.colour, 102, 204, 255);
-	glVertexAttribIPointer(data.loc.vertex, 2, GL_INT, 0, 0);
-	glEnableVertexAttribArray(data.loc.vertex);
+	glGenVertexArrays(1, &data.render.data.vao);
+	glBindVertexArray(data.render.data.vao);
+	GLint vertices[4][2] = {{1, 1}, {-1, 1}, {-1, -1}, {1, -1}};
+	glGenBuffers(1, &data.render.data.aBuffer);
+	glBindBuffer(GL_ARRAY_BUFFER, data.render.data.aBuffer);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
-	QImage img(QImage(":/texture.png").convertToFormat(QImage::Format_RGB888).mirrored());
-	glActiveTexture(GL_TEXTURE0);
-	glGenTextures(1, &data.texture);
-	glBindTexture(GL_TEXTURE_2D, data.texture);
+	data.render.loc.vertex = glGetAttribLocation(data.render.program, "vertex");
+	data.render.loc.projection = glGetUniformLocation(data.render.program, "projection");
+	glVertexAttribIPointer(data.render.loc.vertex, 2, GL_INT, 0, 0);
+	glEnableVertexAttribArray(data.render.loc.vertex);
+
+	// Initialise binarization program
+	shader_info_t bin_shaders[] = {
+		{GL_VERTEX_SHADER, RES_SHADER_PFX "vertex.vsh"},
+		{GL_FRAGMENT_SHADER, RES_SHADER_PFX "binarization.fsh"},
+		{GL_NONE, 0}
+	};
+	if ((data.bin.program = loadShaders(bin_shaders)) == 0) {
+		qApp->quit();
+		return;
+	}
+	glUseProgram(data.bin.program);
+
+	// Using the same set of data as render program
+	data.bin.data.vao = data.render.data.vao;
+	data.bin.data.aBuffer = data.render.data.aBuffer;
+
+	data.bin.loc.vertex = glGetAttribLocation(data.bin.program, "vertex");
+	data.bin.loc.projection = glGetUniformLocation(data.bin.program, "projection");
+	glVertexAttribIPointer(data.bin.loc.vertex, 2, GL_INT, 0, 0);
+	glEnableVertexAttribArray(data.bin.loc.vertex);
+
+	// Generate textures
+	data.texture.debug.orig = loadTexture(":/texture.png", &data.texture.debug.width, &data.texture.debug.height);
+	glGenTextures(1, &data.texture.debug.bin);
+	glBindTexture(GL_TEXTURE_2D, data.texture.debug.bin);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, img.width(), img.height(), 0, GL_RGB, GL_UNSIGNED_BYTE, img.constBits());
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, data.texture.debug.width, data.texture.debug.height, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
+
+	// Render binarized texture
+	GLuint fbo;
+	glGenFramebuffers(1, &fbo);
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo);
+	glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, data.texture.debug.bin, 0);
+
+	glViewport(0, 0, data.texture.debug.width, data.texture.debug.height);
+	glClear(GL_COLOR_BUFFER_BIT);
+	glUseProgram(data.bin.program);
+	glBindVertexArray(data.bin.data.vao);
+	glBindTexture(GL_TEXTURE_2D, data.texture.debug.orig);
+	glUniformMatrix4fv(data.bin.loc.projection, 1, GL_FALSE, QMatrix4x4().constData());
+	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+	glFlush();
+
+	// Bind to default fbo again, and release resources
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+	glDeleteFramebuffers(1, &fbo);
 }
 
 void GLWidget::resizeGL(int w, int h)
@@ -107,69 +138,19 @@ void GLWidget::paintGL()
 	}
 #endif
 
-	glBindTexture(GL_TEXTURE_2D, data.texture);
-	glUniformMatrix4fv(data.loc.projection, 1, GL_FALSE, data.projection.constData());
+	glUseProgram(data.render.program);
+	glBindVertexArray(data.render.data.vao);
+	glBindTexture(GL_TEXTURE_2D, data.texture.debug.orig);
+	glUniformMatrix4fv(data.render.loc.projection, 1, GL_FALSE, data.projection.constData());
 	glClear(GL_COLOR_BUFFER_BIT);
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+	QMatrix4x4 projection(data.projection);
+	projection.translate(1. - 0.25, -(1. - 0.25), 0);
+	projection.scale(0.25);
+	glUniformMatrix4fv(data.render.loc.projection, 1, GL_FALSE, projection.constData());
+	glBindTexture(GL_TEXTURE_2D, data.texture.debug.bin);
+	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 	glFlush();
-	//glFinish();
-#if 0
-	if (!data.saving)
-		return;
-	data.saving = false;
-
-	QImage *img = saveDialog->img;
-	QImage imgRen(data.save.blockSize, QImage::Format_RGB888);
-	if (img == 0) {
-		saveDialog->failed(tr("img allocation failed"));
-		return;
-	}
-	if (img->isNull()) {
-		saveDialog->failed(tr("img is null"));
-		return;
-	}
-	if (imgRen.isNull()) {
-		saveDialog->failed(tr("imgRen is null"));
-		return;
-	}
-
-	QOpenGLFramebufferObject fbo(data.save.blockSize);
-	fbo.bind();
-	glViewport(0, 0, data.save.blockSize.width(), data.save.blockSize.height());
-	QPoint pos;
-	int w = data.save.blockSize.width() * data.save.blockCount.width();
-	int h = data.save.blockSize.height() * data.save.blockCount.height();
-	float asp = (float)h / (float)w;
-render:
-	// Select region
-	data.projection.setToIdentity();
-	float left = float(2 * pos.x() - data.save.blockCount.width()) / data.save.blockCount.width();
-	float top = float(2 * pos.y() - data.save.blockCount.height()) / data.save.blockCount.height();
-	data.projection.ortho(left, left + 2. / data.save.blockCount.width(),
-			      asp * top, asp * (top + 2. / data.save.blockCount.height()), -1., 1.);
-	render();
-
-	QPoint imgPos(pos.x() * data.save.blockSize.width(), pos.y() * data.save.blockSize.height());
-	glReadPixels(0, 0, imgRen.width(), imgRen.height(), GL_RGB, GL_UNSIGNED_BYTE, imgRen.bits());
-	unsigned char *imgPtr = img->scanLine(img->height() - imgPos.y() - 1) + imgPos.x() * 3;
-	for (int i = 0; i < imgRen.height(); i++) {
-		memcpy(imgPtr, imgRen.constScanLine(i), imgRen.bytesPerLine());
-		imgPtr -= img->bytesPerLine();
-	}
-
-	if (pos.x() != data.save.blockCount.width() - 1)
-		pos.setX(pos.x() + 1);
-	else if (pos.y() != data.save.blockCount.height() - 1) {
-		pos.setX(0);
-		pos.setY(pos.y() + 1);
-	} else {
-		fbo.release();
-		resizeGL(width(), height());
-		saveDialog->done();
-		return;
-	}
-	goto render;
-#endif
 }
 
 void GLWidget::wheelEvent(QWheelEvent *e)
@@ -308,7 +289,7 @@ GLuint GLWidget::loadShaders(GLWidget::shader_info_t *shaders)
 failed:
 	// Shaders can be detach and deleted after program linked
 	GLuint sh[count], *shp = sh;
-	glGetAttachedShaders(data.program, count, &count, sh);
+	glGetAttachedShaders(program, count, &count, sh);
 	while (count--) {
 		glDetachShader(program, *shp);
 		glDeleteShader(*shp++);
@@ -321,4 +302,20 @@ failed:
 		return program;
 	glDeleteProgram(program);
 	return 0;
+}
+
+GLuint GLWidget::loadTexture(QString filepath, GLuint *width, GLuint *height)
+{
+	GLuint texture;
+	QImage img(QImage(filepath).convertToFormat(QImage::Format_RGB888).mirrored());
+	glGenTextures(1, &texture);
+	glBindTexture(GL_TEXTURE_2D, texture);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, img.width(), img.height(), 0, GL_RGB, GL_UNSIGNED_BYTE, img.constBits());
+	if (width)
+		*width = img.width();
+	if (height)
+		*height = img.height();
+	return texture;
 }

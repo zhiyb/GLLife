@@ -32,17 +32,41 @@ private:
 	GLuint loadShader(GLenum type, const QByteArray& context);
 	GLuint loadShaderFile(GLenum type, QString path);
 	GLuint loadShaders(shader_info_t *shaders);
+	GLuint loadTexture(QString filepath, GLuint *width, GLuint *height);
 
 	struct data_t {
-		struct loc_t {
-			GLint vertex, projection;
-			//GLint zoom, position;
-			//GLint dim, animation;
-			GLuint colour;
-		} loc;
+		struct {
+			struct loc_t {
+				GLint vertex, projection;
+			} loc;
+			struct data_t {
+				GLuint vao, aBuffer;
+			} data;
+			GLuint buffer;
+			GLuint program;
+		} bin;		// Binarization
+
+		struct {
+			struct loc_t {
+				GLint vertex, projection;
+			} loc;
+			struct data_t {
+				GLuint vao, aBuffer;
+			} data;
+			GLuint buffer;
+			GLuint program;
+		} render;	// Render to screen
+
+		struct texture_t {
+			struct {
+				GLuint width, height;
+				GLuint orig;
+				GLuint bin;
+			} debug;
+		} texture;
+
 		bool pause;
-		GLuint program, fsh, vsh;
-		GLuint vao, buffer, texture;
+		//GLuint vao, buffer, texture;
 		GLfloat zoom;
 		GLdouble moveX, moveY;
 		QPoint prevPos;
