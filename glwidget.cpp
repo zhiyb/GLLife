@@ -7,7 +7,7 @@
 
 #define RES_SHADER_PFX	":/shaders/"
 #define ZOOMSTEP	0.25
-#define DIM		640
+#define BLOCK_SIZE	1024
 
 GLWidget::GLWidget(QWidget *parent) : QOpenGLWidget(parent)
 {
@@ -48,7 +48,7 @@ void GLWidget::initializeGL()
 		{GL_NONE, 0}
 	};
 	if ((render.program = loadShaders(render_shaders)) == 0) {
-		qApp->quit();
+		qFatal("%s: %d: %s", __FILE__, __LINE__, __PRETTY_FUNCTION__);
 		return;
 	}
 	glUseProgram(render.program);
@@ -61,7 +61,8 @@ void GLWidget::initializeGL()
 	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
 	render.loc.vertex = glGetAttribLocation(render.program, "vertex");
-	render.loc.width = glGetAttribLocation(render.program, "width");
+	render.loc.vpSize = glGetUniformLocation(render.program, "vpSize");
+	render.loc.texSize = glGetUniformLocation(render.program, "texSize");
 	render.loc.projection = glGetUniformLocation(render.program, "projection");
 	glVertexAttribIPointer(render.loc.vertex, 2, GL_INT, 0, 0);
 	glEnableVertexAttribArray(render.loc.vertex);
@@ -73,7 +74,7 @@ void GLWidget::initializeGL()
 		{GL_NONE, 0}
 	};
 	if ((bin.program = loadShaders(bin_shaders)) == 0) {
-		qApp->quit();
+		qFatal("%s: %d: %s", __FILE__, __LINE__, __PRETTY_FUNCTION__);
 		return;
 	}
 	glUseProgram(bin.program);
@@ -83,7 +84,8 @@ void GLWidget::initializeGL()
 	bin.data.aBuffer = render.data.aBuffer;
 
 	bin.loc.vertex = glGetAttribLocation(bin.program, "vertex");
-	bin.loc.width = glGetAttribLocation(render.program, "width");
+	bin.loc.vpSize = glGetUniformLocation(render.program, "vpSize");
+	bin.loc.texSize = glGetUniformLocation(render.program, "texSize");
 	bin.loc.projection = glGetUniformLocation(bin.program, "projection");
 	glVertexAttribIPointer(bin.loc.vertex, 2, GL_INT, 0, 0);
 	glEnableVertexAttribArray(bin.loc.vertex);
@@ -92,9 +94,25 @@ void GLWidget::initializeGL()
 	texture.debug.orig = loadTexture(":/texture.png", &texture.debug.width, &texture.debug.height);
 	glGenTextures(1, &texture.debug.bin);
 	glBindTexture(GL_TEXTURE_2D, texture.debug.bin);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_R, GL_ZERO);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_G, GL_RED);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_R, GL_ZERO);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_A, GL_ONE);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, texture.debug.width, texture.debug.height, 0, GL_RED, GL_UNSIGNED_BYTE, 0);
+	glGenTextures(2, buffer.buffers);
+	for (int i = 0; i != 2; i++) {
+		if (buffer.buffers[i] == 0) {
+			qWarning("Cannot generate texture units for rendering.");
+			qFatal("%s: %d: %s", __FILE__, __LINE__, __func__);
+			return;
+		}
+		glBindTexture(GL_TEXTURE_2D, buffer.buffers[i]);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, BLOCK_SIZE, BLOCK_SIZE, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
+	}
 
 	// Render binarized texture
 	GLuint fbo;
@@ -107,8 +125,21 @@ void GLWidget::initializeGL()
 	glUseProgram(bin.program);
 	glBindVertexArray(bin.data.vao);
 	glBindTexture(GL_TEXTURE_2D, texture.debug.orig);
-	glUniform1i(bin.loc.width, texture.debug.width);
+	glUniform2i(bin.loc.vpSize, texture.debug.width, texture.debug.height);
+	glUniform2i(bin.loc.texSize, texture.debug.width, texture.debug.height);
 	glUniformMatrix4fv(bin.loc.projection, 1, GL_FALSE, QMatrix4x4().constData());
+	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+	glFlush();
+
+	// Render initial pattern
+	glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, buffer.current(), 0);
+	glViewport(0, 0, BLOCK_SIZE, BLOCK_SIZE);
+	glUseProgram(render.program);
+	glBindVertexArray(render.data.vao);
+	glBindTexture(GL_TEXTURE_2D, texture.debug.bin);
+	glUniform2i(render.loc.vpSize, BLOCK_SIZE, BLOCK_SIZE);
+	glUniform2i(render.loc.texSize, texture.debug.width, texture.debug.height);
+	glUniformMatrix4fv(render.loc.projection, 1, GL_FALSE, QMatrix4x4().constData());
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 	glFlush();
 
@@ -143,16 +174,11 @@ void GLWidget::paintGL()
 
 	glUseProgram(render.program);
 	glBindVertexArray(render.data.vao);
-	glBindTexture(GL_TEXTURE_2D, texture.debug.orig);
-	glUniform1i(render.loc.width, width());
+	glBindTexture(GL_TEXTURE_2D, buffer.current());
+	glUniform2i(render.loc.vpSize, width(), height());
+	glUniform2i(render.loc.texSize, BLOCK_SIZE, BLOCK_SIZE);
 	glUniformMatrix4fv(render.loc.projection, 1, GL_FALSE, projection.constData());
 	glClear(GL_COLOR_BUFFER_BIT);
-	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-	QMatrix4x4 proj(projection);
-	proj.translate(1. - 0.25, -(1. - 0.25), 0);
-	proj.scale(0.25);
-	glUniformMatrix4fv(render.loc.projection, 1, GL_FALSE, proj.constData());
-	glBindTexture(GL_TEXTURE_2D, texture.debug.bin);
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 	glFlush();
 }
@@ -336,4 +362,11 @@ GLuint GLWidget::loadTexture(QString filepath, GLuint *width, GLuint *height)
 	if (height)
 		*height = img.height();
 	return texture;
+}
+
+void GLWidget::buffer_t::swap()
+{
+	GLuint tmp = buffers[0];
+	buffers[0] = buffers[1];
+	buffers[1] = tmp;
 }

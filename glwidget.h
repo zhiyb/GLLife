@@ -17,6 +17,11 @@ protected:
 	void initializeGL();
 	void resizeGL(int w, int h);
 	void paintGL();
+
+private:
+	void renderBinarized(GLuint texture, GLuint x, GLuint y);
+
+protected:
 	void wheelEvent(QWheelEvent *e);
 	void mousePressEvent(QMouseEvent *e);
 	void mouseMoveEvent(QMouseEvent *e);
@@ -36,7 +41,7 @@ private:
 
 	struct bin_t {
 		struct loc_t {
-			GLint vertex, width, projection;
+			GLint vertex, vpSize, texSize, projection;
 		} loc;
 		struct data_t {
 			GLuint vao, aBuffer;
@@ -47,7 +52,7 @@ private:
 
 	struct render_t {
 		struct loc_t {
-			GLint vertex, width, projection;
+			GLint vertex, vpSize, texSize, projection;
 		} loc;
 		struct data_t {
 			GLuint vao, aBuffer;
@@ -63,6 +68,13 @@ private:
 			GLuint bin;
 		} debug;
 	} texture;
+
+	struct buffer_t {
+		void swap();
+		GLuint current() {return buffers[0];}
+
+		GLuint buffers[2];
+	} buffer;
 
 	bool pause;
 	GLfloat zoom;
