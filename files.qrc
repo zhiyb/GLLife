@@ -2,5 +2,6 @@
     <qresource prefix="/">
         <file>shaders/vertex.vsh</file>
         <file>shaders/display.fsh</file>
+        <file>texture.png</file>
     </qresource>
 </RCC>

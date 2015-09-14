@@ -1,9 +1,13 @@
 #version 430 core
 
 uniform ivec3 colour;
-out vec4 fragColor;
+layout (location = 0) out vec4 fragColor;
+
+in vec2 texCoord;
+uniform sampler2D tex;
 
 void main()
 {
-	fragColor = vec4(vec3(colour) / vec3(256., 256., 256.), 1.0);
+	//fragColor = vec4(texCoord, texture(tex, texCoord).b, 1.0);
+	fragColor = texture(tex, texCoord);
 }

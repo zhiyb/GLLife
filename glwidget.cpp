@@ -42,9 +42,11 @@ void GLWidget::initializeGL()
 	initializeOpenGLFunctions();
 	qDebug() << format();
 
+	glClearColor(0.0, 0.0, 0.0, 1.0);
+
 	glGenVertexArrays(1, &data.vao);
 	glBindVertexArray(data.vao);
-	GLint vertices[4][2] = {{1, 1}, {1, -1}, {-1, -1}, {-1, 1}};
+	GLint vertices[4][2] = {{1, 1}, {-1, 1}, {-1, -1}, {1, -1}};
 	glGenBuffers(1, &data.buffer);
 	glBindBuffer(GL_ARRAY_BUFFER, data.buffer);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
@@ -69,10 +71,16 @@ void GLWidget::initializeGL()
 	//data.loc.position = glGetUniformLocation(data.program, "position");
 	glUseProgram(data.program);
 	glUniform3i(data.loc.colour, 102, 204, 255);
-	glVertexAttribIPointer(data.loc.vertex, 2, GL_INT, 0, 0/*sdata.vertices*/);
+	glVertexAttribIPointer(data.loc.vertex, 2, GL_INT, 0, 0);
 	glEnableVertexAttribArray(data.loc.vertex);
 
-	glClearColor(0.0, 0.0, 0.0, 1.0);
+	QImage img(QImage(":/texture.png").convertToFormat(QImage::Format_RGB888).mirrored());
+	glActiveTexture(GL_TEXTURE0);
+	glGenTextures(1, &data.texture);
+	glBindTexture(GL_TEXTURE_2D, data.texture);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, img.width(), img.height(), 0, GL_RGB, GL_UNSIGNED_BYTE, img.constBits());
 }
 
 void GLWidget::resizeGL(int w, int h)
@@ -99,6 +107,7 @@ void GLWidget::paintGL()
 	}
 #endif
 
+	glBindTexture(GL_TEXTURE_2D, data.texture);
 	glUniformMatrix4fv(data.loc.projection, 1, GL_FALSE, data.projection.constData());
 	glClear(GL_COLOR_BUFFER_BIT);
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);

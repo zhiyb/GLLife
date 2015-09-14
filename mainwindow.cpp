@@ -7,6 +7,7 @@ MainWindow::MainWindow(QWidget *parent)
 {
 	QWidget *w = new QWidget(this);
 	setCentralWidget(w);
+	resize(800, 800);
 
 	QHBoxLayout *hlayout = new QHBoxLayout(w);
 	GLWidget *glw = new GLWidget;

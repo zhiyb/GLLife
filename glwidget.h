@@ -42,7 +42,7 @@ private:
 		} loc;
 		bool pause;
 		GLuint program, fsh, vsh;
-		GLuint vao, buffer;
+		GLuint vao, buffer, texture;
 		GLfloat zoom;
 		GLdouble moveX, moveY;
 		QPoint prevPos;
