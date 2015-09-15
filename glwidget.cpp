@@ -6,14 +6,14 @@
 #include "glwidget.h"
 
 #define RES_SHADER_PFX	":/shaders/"
-#define ZOOMSTEP	0.25
+#define MOVESTEP	10
 #define BLOCK_SIZE	1024
 
 GLWidget::GLWidget(QWidget *parent) : QOpenGLWidget(parent)
 {
 	zoom = 0;
-	moveX = 0;
-	moveY = 0;
+	move[0] = 0;
+	move[1] = 0;
 	step = 0;
 	framebuffer.def = 0;
 
@@ -32,8 +32,6 @@ GLWidget::GLWidget(QWidget *parent) : QOpenGLWidget(parent)
 
 	setFocusPolicy(Qt::StrongFocus);
 	setAutoFillBackground(false);
-
-	updateTitle();
 }
 
 void GLWidget::initializeGL()
@@ -49,12 +47,20 @@ void GLWidget::initializeGL()
 		{GL_FRAGMENT_SHADER, RES_SHADER_PFX "render.fsh"},
 		{GL_NONE, 0}
 	};
-	if ((render.program = loadShaders(render_shaders)) == 0) {
+	if ((render.program = loadShaders(render_shaders)) == 0)
 		qFatal("%s: %d: %s", __FILE__, __LINE__, __PRETTY_FUNCTION__);
-		return;
-	}
 	glUseProgram(render.program);
 
+	// Retrive locations
+	render.loc.vertex = glGetAttribLocation(render.program, "vertex");
+	render.loc.vpSize = glGetUniformLocation(render.program, "vpSize");
+	render.loc.texSize = glGetUniformLocation(render.program, "texSize");
+	render.loc.zoom = glGetUniformLocation(render.program, "zoom");
+	render.loc.move = glGetUniformLocation(render.program, "move");
+	glVertexAttribIPointer(render.loc.vertex, 2, GL_INT, 0, 0);
+	glEnableVertexAttribArray(render.loc.vertex);
+
+	// Generate vertex arrays
 	glGenVertexArrays(1, &render.data.vao);
 	glBindVertexArray(render.data.vao);
 	GLuint aBuffer;
@@ -63,49 +69,31 @@ void GLWidget::initializeGL()
 	glBindBuffer(GL_ARRAY_BUFFER, aBuffer);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
-	render.loc.vertex = glGetAttribLocation(render.program, "vertex");
-	render.loc.vpSize = glGetUniformLocation(render.program, "vpSize");
-	render.loc.texSize = glGetUniformLocation(render.program, "texSize");
-	glVertexAttribIPointer(render.loc.vertex, 2, GL_INT, 0, 0);
-	glEnableVertexAttribArray(render.loc.vertex);
-
 	// Initialise binarization program
+	// Using the same set of vertex data as the render program
+	bin = render;
 	shader_info_t bin_shaders[] = {
 		{GL_VERTEX_SHADER, RES_SHADER_PFX "vertex.vsh"},
 		{GL_FRAGMENT_SHADER, RES_SHADER_PFX "binarization.fsh"},
 		{GL_NONE, 0}
 	};
-	if ((bin.program = loadShaders(bin_shaders)) == 0) {
+	if ((bin.program = loadShaders(bin_shaders)) == 0)
 		qFatal("%s: %d: %s", __FILE__, __LINE__, __PRETTY_FUNCTION__);
-		return;
-	}
 	glUseProgram(bin.program);
-
-	// Using the same set of vertex data as render program
-	bin.data.vao = render.data.vao;
-	bin.loc.vertex = glGetAttribLocation(bin.program, "vertex");
-	bin.loc.vpSize = glGetUniformLocation(bin.program, "vpSize");
-	bin.loc.texSize = glGetUniformLocation(bin.program, "texSize");
 	glVertexAttribIPointer(bin.loc.vertex, 2, GL_INT, 0, 0);
 	glEnableVertexAttribArray(bin.loc.vertex);
 
 	// Initialise iteration program
+	// Using the same set of vertex data as the render program
+	iteration = render;
 	shader_info_t it_shaders[] = {
 		{GL_VERTEX_SHADER, RES_SHADER_PFX "vertex.vsh"},
 		{GL_FRAGMENT_SHADER, RES_SHADER_PFX "iteration.fsh"},
 		{GL_NONE, 0}
 	};
-	if ((iteration.program = loadShaders(it_shaders)) == 0) {
+	if ((iteration.program = loadShaders(it_shaders)) == 0)
 		qFatal("%s: %d: %s", __FILE__, __LINE__, __PRETTY_FUNCTION__);
-		return;
-	}
 	glUseProgram(iteration.program);
-
-	// Using the same set of vertex data as render program
-	iteration.data.vao = render.data.vao;
-	iteration.loc.vertex = glGetAttribLocation(iteration.program, "vertex");
-	iteration.loc.vpSize = glGetUniformLocation(iteration.program, "vpSize");
-	iteration.loc.texSize = glGetUniformLocation(iteration.program, "texSize");
 	glVertexAttribIPointer(iteration.loc.vertex, 2, GL_INT, 0, 0);
 	glEnableVertexAttribArray(iteration.loc.vertex);
 
@@ -125,7 +113,6 @@ void GLWidget::initializeGL()
 		if (buffer.buffers[i] == 0) {
 			qWarning("Cannot generate texture units for rendering.");
 			qFatal("%s: %d: %s", __FILE__, __LINE__, __func__);
-			return;
 		}
 		glBindTexture(GL_TEXTURE_2D, buffer.buffers[i]);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -146,6 +133,8 @@ void GLWidget::initializeGL()
 	glBindTexture(GL_TEXTURE_2D, texture.debug.orig);
 	glUniform2i(bin.loc.vpSize, texture.debug.width, texture.debug.height);
 	glUniform2i(bin.loc.texSize, texture.debug.width, texture.debug.height);
+	glUniform1i(bin.loc.zoom, 0);
+	glUniform2f(bin.loc.move, 0., 0.);
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 	glFlush();
 
@@ -157,8 +146,12 @@ void GLWidget::initializeGL()
 	glBindTexture(GL_TEXTURE_2D, texture.debug.bin);
 	glUniform2i(render.loc.vpSize, BLOCK_SIZE, BLOCK_SIZE);
 	glUniform2i(render.loc.texSize, texture.debug.width, texture.debug.height);
+	glUniform1i(render.loc.zoom, 0);
+	glUniform2f(render.loc.move, 0., 0.);
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 	glFlush();
+
+	updateTitle();
 }
 
 void GLWidget::resizeGL(int w, int h)
@@ -196,6 +189,8 @@ void GLWidget::paintGL()
 	glBindVertexArray(iteration.data.vao);
 	glUniform2i(iteration.loc.vpSize, BLOCK_SIZE, BLOCK_SIZE);
 	glUniform2i(iteration.loc.texSize, BLOCK_SIZE, BLOCK_SIZE);
+	glUniform1i(render.loc.zoom, 0);
+	glUniform2f(render.loc.move, 0., 0.);
 
 	// Execute iteration steps
 	for (; step != 0; step--) {
@@ -217,6 +212,8 @@ render:
 	glBindTexture(GL_TEXTURE_2D, buffer.current());
 	glUniform2i(render.loc.vpSize, width(), height());
 	glUniform2i(render.loc.texSize, BLOCK_SIZE, BLOCK_SIZE);
+	glUniform1i(render.loc.zoom, zoom);
+	glUniform2f(render.loc.move, move[0], move[1]);
 	glClear(GL_COLOR_BUFFER_BIT);
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 	glFlush();
@@ -224,7 +221,7 @@ render:
 
 void GLWidget::wheelEvent(QWheelEvent *e)
 {
-	zoom += -(float)e->angleDelta().y() / 120. * ZOOMSTEP;
+	zoom += -e->angleDelta().y() / 120;
 	updateTitle();
 	update();
 	QOpenGLWidget::wheelEvent(e);
@@ -240,8 +237,8 @@ void GLWidget::mousePressEvent(QMouseEvent *e)
 void GLWidget::mouseMoveEvent(QMouseEvent *e)
 {
 	QPointF p = e->pos() - prevPos;
-	moveX += -p.x() * 2.f * pow(2, zoom) / (double)width();
-	moveY += p.y() * 2.f * pow(2, zoom) / (double)width();
+	move[0] += -p.x() * pow(2, zoom);
+	move[1] += p.y() * pow(2, zoom);
 	prevPos = e->pos();
 	updateTitle();
 	update();
@@ -251,11 +248,18 @@ void GLWidget::mouseMoveEvent(QMouseEvent *e)
 
 void GLWidget::keyPressEvent(QKeyEvent *e)
 {
-	const float moveTh = 10;
 	switch (e->key()) {
 	case '.':	// Iteration 1 step
 		step++;
 		break;
+	case 's':
+	case 'S':
+	{
+		int steps = QInputDialog::getInt(this, "Iteration steps", "Please specify iteration steps:", 0, 0);
+		if (steps)
+			step += steps;
+		break;
+	}
 	case 'r':	// Refresh
 	case 'R':
 		break;
@@ -269,24 +273,24 @@ void GLWidget::keyPressEvent(QKeyEvent *e)
 		pause = !pause;
 		break;
 	case Qt::Key_Up:
-		moveY += -moveTh * 2.f * pow(2, zoom) / (double)width();
+		move[1] -= MOVESTEP * pow(2, zoom);
 		break;
 	case Qt::Key_Down:
-		moveY += moveTh * 2.f * pow(2, zoom) / (double)width();
+		move[1] += MOVESTEP * pow(2, zoom);
 		break;
 	case Qt::Key_Left:
-		moveX += moveTh * 2.f * pow(2, zoom) / (double)width();
+		move[0] += MOVESTEP * pow(2, zoom);
 		break;
 	case Qt::Key_Right:
-		moveX += -moveTh * 2.f * pow(2, zoom) / (double)width();
+		move[0] -= MOVESTEP * pow(2, zoom);
 		break;
 	case '+':	// Zoom in
 	case '=':
-		zoom -= ZOOMSTEP;
+		zoom--;
 		break;
 	case '-':	// Zoom out
 	case '_':
-		zoom += ZOOMSTEP;
+		zoom++;
 		break;
 	default:
 		goto skip;
@@ -301,7 +305,7 @@ skip:
 void GLWidget::updateTitle()
 {
 	emit titleUpdate(tr("GLLife <(%1, %2) * %3> %4")
-			 .arg(moveX).arg(moveY).arg(1. / pow(2, zoom))
+			 .arg(move[0]).arg(move[1]).arg(1. / pow(2, zoom))
 			 .arg(pause ? tr("[Paused] ") : tr("")));
 }
 

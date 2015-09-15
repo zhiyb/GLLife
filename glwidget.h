@@ -39,35 +39,25 @@ private:
 	GLuint loadShaders(shader_info_t *shaders);
 	GLuint loadTexture(QString filepath, GLuint *width, GLuint *height);
 
-	struct bin_t {
-		struct loc_t {
-			GLint vertex, vpSize, texSize;
-		} loc;
-		struct data_t {
-			GLuint vao;
-		} data;
-		GLuint program;
-	} bin;		// Binarization
+	struct vertex_loc_t {
+		GLuint vpSize, texSize, zoom, move;
+		GLuint vertex;
+	};
 
-	struct render_t {
-		struct loc_t {
-			GLint vertex, vpSize, texSize;
-		} loc;
-		struct data_t {
-			GLuint vao;
-		} data;
-		GLuint program;
-	} render;	// Render to screen
+	struct vertex_data_t {
+		GLuint vao;	// Vertex array object
+		GLuint ubo;	// Uniform buffer object
+	};
 
-	struct iteration_t {
-		struct loc_t {
-			GLint vertex, vpSize, texSize;
-		} loc;
-		struct data_t {
-			GLuint vao;
-		} data;
+	struct program_t {
+		vertex_loc_t loc;
+		vertex_data_t data;
 		GLuint program;
-	} iteration;	// Game of life iteration
+	};
+
+	program_t bin;		// Binarization
+	program_t render;	// Render to screen
+	program_t iteration;	// Game of life iteration
 
 	struct texture_t {
 		struct debug_t {
@@ -91,8 +81,8 @@ private:
 	} framebuffer;
 
 	bool pause;
-	GLfloat zoom;
-	GLdouble moveX, moveY;
+	GLint zoom;
+	GLfloat move[2];
 	GLuint step;
 	QPoint prevPos;
 };
