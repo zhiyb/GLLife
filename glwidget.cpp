@@ -39,7 +39,7 @@ void GLWidget::initializeGL()
 	initializeOpenGLFunctions();
 	qDebug() << format();
 
-	glClearColor(0.0, 0.0, 0.0, 1.0);
+	glClearColor(0.125, 0.125, 0.125, 1.);
 
 	// Initialise render to screen program
 	shader_info_t render_shaders[] = {
