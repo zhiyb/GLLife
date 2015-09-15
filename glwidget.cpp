@@ -7,7 +7,8 @@
 
 #define RES_SHADER_PFX	":/shaders/"
 #define MOVESTEP	10
-#define BLOCK_SIZE	1024
+#define BLOCK_SIZE_W	1550
+#define BLOCK_SIZE_H	800
 #define REPORT_FPS_ITVL	2000
 
 GLWidget::GLWidget(QWidget *parent) : QOpenGLWidget(parent)
@@ -121,7 +122,7 @@ void GLWidget::initializeGL()
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, BLOCK_SIZE, BLOCK_SIZE, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, BLOCK_SIZE_W, BLOCK_SIZE_H, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
 	}
 
 	// Render binarized texture
@@ -143,11 +144,11 @@ void GLWidget::initializeGL()
 
 	// Render initial pattern
 	glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, buffer.current(), 0);
-	glViewport(0, 0, BLOCK_SIZE, BLOCK_SIZE);
+	glViewport(0, 0, BLOCK_SIZE_W, BLOCK_SIZE_H);
 	glUseProgram(render.program);
 	glBindVertexArray(render.data.vao);
 	glBindTexture(GL_TEXTURE_2D, texture.debug.bin);
-	glUniform2i(render.loc.vpSize, BLOCK_SIZE, BLOCK_SIZE);
+	glUniform2i(render.loc.vpSize, BLOCK_SIZE_W, BLOCK_SIZE_H);
 	glUniform2i(render.loc.texSize, texture.debug.width, texture.debug.height);
 	glUniform1i(render.loc.zoom, 0);
 	glUniform2f(render.loc.move, 0., 0.);
@@ -186,13 +187,13 @@ void GLWidget::paintGL()
 
 	// Start off-screen rendering (calculations, iterations)
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, framebuffer.off);
-	glViewport(0, 0, BLOCK_SIZE, BLOCK_SIZE);
+	glViewport(0, 0, BLOCK_SIZE_W, BLOCK_SIZE_H);
 
 	// Begin iterations
 	glUseProgram(iteration.program);
 	glBindVertexArray(iteration.data.vao);
-	glUniform2i(iteration.loc.vpSize, BLOCK_SIZE, BLOCK_SIZE);
-	glUniform2i(iteration.loc.texSize, BLOCK_SIZE, BLOCK_SIZE);
+	glUniform2i(iteration.loc.vpSize, BLOCK_SIZE_W, BLOCK_SIZE_H);
+	glUniform2i(iteration.loc.texSize, BLOCK_SIZE_W, BLOCK_SIZE_H);
 	glUniform1i(render.loc.zoom, 0);
 	glUniform2f(render.loc.move, 0., 0.);
 
@@ -215,7 +216,7 @@ render:
 	glBindVertexArray(render.data.vao);
 	glBindTexture(GL_TEXTURE_2D, buffer.current());
 	glUniform2i(render.loc.vpSize, width(), height());
-	glUniform2i(render.loc.texSize, BLOCK_SIZE, BLOCK_SIZE);
+	glUniform2i(render.loc.texSize, BLOCK_SIZE_W, BLOCK_SIZE_H);
 	glUniform1i(render.loc.zoom, zoom);
 	glUniform2f(render.loc.move, move[0], move[1]);
 	glClear(GL_COLOR_BUFFER_BIT);
