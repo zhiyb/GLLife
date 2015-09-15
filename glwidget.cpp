@@ -283,16 +283,16 @@ void GLWidget::keyPressEvent(QKeyEvent *e)
 		pause = !pause;
 		break;
 	case Qt::Key_Up:
-		move[1] -= MOVESTEP * pow(2, zoom);
-		break;
-	case Qt::Key_Down:
 		move[1] += MOVESTEP * pow(2, zoom);
 		break;
+	case Qt::Key_Down:
+		move[1] -= MOVESTEP * pow(2, zoom);
+		break;
 	case Qt::Key_Left:
-		move[0] += MOVESTEP * pow(2, zoom);
+		move[0] -= MOVESTEP * pow(2, zoom);
 		break;
 	case Qt::Key_Right:
-		move[0] -= MOVESTEP * pow(2, zoom);
+		move[0] += MOVESTEP * pow(2, zoom);
 		break;
 	case '+':	// Zoom in
 	case '=':
