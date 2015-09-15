@@ -400,33 +400,6 @@ void GLWidget::setTexSwizzle(GLint a, GLint r, GLint g, GLint b)
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_B, b);
 }
 
-GLuint GLWidget::loadShader(GLenum type, const QByteArray& context)
-{
-	GLuint shader = glCreateShader(type);
-	if (shader == 0) {
-		qWarning("Cannot create OpenGL shader.");
-		return 0;
-	}
-	const char *p = context.constData();
-	GLint length = context.length();
-	glShaderSource(shader, 1, &p, &length);
-	glCompileShader(shader);
-
-	GLint logLength;
-	glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &logLength);
-	char log[logLength];
-	glGetShaderInfoLog(shader, logLength, &logLength, log);
-	qWarning(log);
-
-	GLint status;
-	glGetShaderiv(shader, GL_COMPILE_STATUS, &status);
-	if (status == GL_TRUE)
-		return shader;
-	qWarning("Shader compilation failed.");
-	glDeleteShader(shader);
-	return 0;
-}
-
 GLuint GLWidget::loadShaderFile(GLenum type, QString path)
 {
 	QFile f(path);

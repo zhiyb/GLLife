@@ -48,7 +48,6 @@ private:
 	void drawPoint(QVector2D pos, bool death);
 	void updateTitle();
 	void setTexSwizzle(GLint a, GLint r, GLint g, GLint b);
-	GLuint loadShader(GLenum type, const QByteArray& context);
 	GLuint loadShaderFile(GLenum type, QString path);
 	GLuint loadShaders(shader_info_t *shaders);
 	GLuint loadTexture(QString filepath, GLuint *width, GLuint *height);
