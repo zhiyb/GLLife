@@ -14,6 +14,8 @@ GLWidget::GLWidget(QWidget *parent) : QOpenGLWidget(parent)
 	zoom = 0;
 	moveX = 0;
 	moveY = 0;
+	step = 0;
+	framebuffer.def = 0;
 
 	QSurfaceFormat fmt = format();
 	fmt.setSamples(0);
@@ -55,15 +57,15 @@ void GLWidget::initializeGL()
 
 	glGenVertexArrays(1, &render.data.vao);
 	glBindVertexArray(render.data.vao);
+	GLuint aBuffer;
 	GLint vertices[4][2] = {{1, 1}, {-1, 1}, {-1, -1}, {1, -1}};
-	glGenBuffers(1, &render.data.aBuffer);
-	glBindBuffer(GL_ARRAY_BUFFER, render.data.aBuffer);
+	glGenBuffers(1, &aBuffer);
+	glBindBuffer(GL_ARRAY_BUFFER, aBuffer);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
 	render.loc.vertex = glGetAttribLocation(render.program, "vertex");
 	render.loc.vpSize = glGetUniformLocation(render.program, "vpSize");
 	render.loc.texSize = glGetUniformLocation(render.program, "texSize");
-	render.loc.projection = glGetUniformLocation(render.program, "projection");
 	glVertexAttribIPointer(render.loc.vertex, 2, GL_INT, 0, 0);
 	glEnableVertexAttribArray(render.loc.vertex);
 
@@ -79,16 +81,33 @@ void GLWidget::initializeGL()
 	}
 	glUseProgram(bin.program);
 
-	// Using the same set of data as render program
+	// Using the same set of vertex data as render program
 	bin.data.vao = render.data.vao;
-	bin.data.aBuffer = render.data.aBuffer;
-
 	bin.loc.vertex = glGetAttribLocation(bin.program, "vertex");
-	bin.loc.vpSize = glGetUniformLocation(render.program, "vpSize");
-	bin.loc.texSize = glGetUniformLocation(render.program, "texSize");
-	bin.loc.projection = glGetUniformLocation(bin.program, "projection");
+	bin.loc.vpSize = glGetUniformLocation(bin.program, "vpSize");
+	bin.loc.texSize = glGetUniformLocation(bin.program, "texSize");
 	glVertexAttribIPointer(bin.loc.vertex, 2, GL_INT, 0, 0);
 	glEnableVertexAttribArray(bin.loc.vertex);
+
+	// Initialise iteration program
+	shader_info_t it_shaders[] = {
+		{GL_VERTEX_SHADER, RES_SHADER_PFX "vertex.vsh"},
+		{GL_FRAGMENT_SHADER, RES_SHADER_PFX "iteration.fsh"},
+		{GL_NONE, 0}
+	};
+	if ((iteration.program = loadShaders(it_shaders)) == 0) {
+		qFatal("%s: %d: %s", __FILE__, __LINE__, __PRETTY_FUNCTION__);
+		return;
+	}
+	glUseProgram(iteration.program);
+
+	// Using the same set of vertex data as render program
+	iteration.data.vao = render.data.vao;
+	iteration.loc.vertex = glGetAttribLocation(iteration.program, "vertex");
+	iteration.loc.vpSize = glGetUniformLocation(iteration.program, "vpSize");
+	iteration.loc.texSize = glGetUniformLocation(iteration.program, "texSize");
+	glVertexAttribIPointer(iteration.loc.vertex, 2, GL_INT, 0, 0);
+	glEnableVertexAttribArray(iteration.loc.vertex);
 
 	// Generate textures
 	texture.debug.orig = loadTexture(":/texture.png", &texture.debug.width, &texture.debug.height);
@@ -111,13 +130,13 @@ void GLWidget::initializeGL()
 		glBindTexture(GL_TEXTURE_2D, buffer.buffers[i]);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, BLOCK_SIZE, BLOCK_SIZE, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
 	}
 
 	// Render binarized texture
-	GLuint fbo;
-	glGenFramebuffers(1, &fbo);
-	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo);
+	glGenFramebuffers(1, &framebuffer.off);
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, framebuffer.off);
 	glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture.debug.bin, 0);
 
 	glViewport(0, 0, texture.debug.width, texture.debug.height);
@@ -127,7 +146,6 @@ void GLWidget::initializeGL()
 	glBindTexture(GL_TEXTURE_2D, texture.debug.orig);
 	glUniform2i(bin.loc.vpSize, texture.debug.width, texture.debug.height);
 	glUniform2i(bin.loc.texSize, texture.debug.width, texture.debug.height);
-	glUniformMatrix4fv(bin.loc.projection, 1, GL_FALSE, QMatrix4x4().constData());
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 	glFlush();
 
@@ -139,21 +157,15 @@ void GLWidget::initializeGL()
 	glBindTexture(GL_TEXTURE_2D, texture.debug.bin);
 	glUniform2i(render.loc.vpSize, BLOCK_SIZE, BLOCK_SIZE);
 	glUniform2i(render.loc.texSize, texture.debug.width, texture.debug.height);
-	glUniformMatrix4fv(render.loc.projection, 1, GL_FALSE, QMatrix4x4().constData());
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 	glFlush();
-
-	// Bind to default fbo again, and release resources
-	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-	glDeleteFramebuffers(1, &fbo);
 }
 
 void GLWidget::resizeGL(int w, int h)
 {
+	// Qt window system fbo cannot be queried in initializeGL
+	glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &framebuffer.def);
 	glViewport(0, 0, w, h);
-	float asp = (float)h / (float)w;
-	projection.setToIdentity();
-	projection.ortho(-1, 1, -asp, asp, -1, 1);
 }
 
 void GLWidget::paintGL()
@@ -172,12 +184,39 @@ void GLWidget::paintGL()
 	}
 #endif
 
+	if (step == 0)	// If no off-screen rendering required
+		goto render;
+
+	// Start off-screen rendering (calculations, iterations)
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, framebuffer.off);
+	glViewport(0, 0, BLOCK_SIZE, BLOCK_SIZE);
+
+	// Begin iterations
+	glUseProgram(iteration.program);
+	glBindVertexArray(iteration.data.vao);
+	glUniform2i(iteration.loc.vpSize, BLOCK_SIZE, BLOCK_SIZE);
+	glUniform2i(iteration.loc.texSize, BLOCK_SIZE, BLOCK_SIZE);
+
+	// Execute iteration steps
+	for (; step != 0; step--) {
+		glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, buffer.next(), 0);
+		glBindTexture(GL_TEXTURE_2D, buffer.current());
+		glClear(GL_COLOR_BUFFER_BIT);
+		glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+		glFlush();
+		buffer.swap();
+	}
+
+	// Bind to default fbo again
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, framebuffer.def);
+	glViewport(0, 0, width(), height());
+
+render:
 	glUseProgram(render.program);
 	glBindVertexArray(render.data.vao);
 	glBindTexture(GL_TEXTURE_2D, buffer.current());
 	glUniform2i(render.loc.vpSize, width(), height());
 	glUniform2i(render.loc.texSize, BLOCK_SIZE, BLOCK_SIZE);
-	glUniformMatrix4fv(render.loc.projection, 1, GL_FALSE, projection.constData());
 	glClear(GL_COLOR_BUFFER_BIT);
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 	glFlush();
@@ -214,6 +253,9 @@ void GLWidget::keyPressEvent(QKeyEvent *e)
 {
 	const float moveTh = 10;
 	switch (e->key()) {
+	case '.':	// Iteration 1 step
+		step++;
+		break;
 	case 'r':	// Refresh
 	case 'R':
 		break;

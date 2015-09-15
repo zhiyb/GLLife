@@ -41,25 +41,33 @@ private:
 
 	struct bin_t {
 		struct loc_t {
-			GLint vertex, vpSize, texSize, projection;
+			GLint vertex, vpSize, texSize;
 		} loc;
 		struct data_t {
-			GLuint vao, aBuffer;
+			GLuint vao;
 		} data;
-		GLuint buffer;
 		GLuint program;
 	} bin;		// Binarization
 
 	struct render_t {
 		struct loc_t {
-			GLint vertex, vpSize, texSize, projection;
+			GLint vertex, vpSize, texSize;
 		} loc;
 		struct data_t {
-			GLuint vao, aBuffer;
+			GLuint vao;
 		} data;
-		GLuint buffer;
 		GLuint program;
 	} render;	// Render to screen
+
+	struct iteration_t {
+		struct loc_t {
+			GLint vertex, vpSize, texSize;
+		} loc;
+		struct data_t {
+			GLuint vao;
+		} data;
+		GLuint program;
+	} iteration;	// Game of life iteration
 
 	struct texture_t {
 		struct debug_t {
@@ -72,15 +80,21 @@ private:
 	struct buffer_t {
 		void swap();
 		GLuint current() {return buffers[0];}
+		GLuint next() {return buffers[1];}
 
 		GLuint buffers[2];
 	} buffer;
 
+	struct framebuffer_t {
+		GLint def;	// Default rendering framebuffer (window system)
+		GLuint off;	// Off-screen rendering framebuffer (computation)
+	} framebuffer;
+
 	bool pause;
 	GLfloat zoom;
 	GLdouble moveX, moveY;
+	GLuint step;
 	QPoint prevPos;
-	QMatrix4x4 projection;
 };
 
 #endif // GLWIDGET_H

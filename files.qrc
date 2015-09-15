@@ -4,5 +4,6 @@
         <file>shaders/render.fsh</file>
         <file>texture.png</file>
         <file>shaders/binarization.fsh</file>
+        <file>shaders/iteration.fsh</file>
     </qresource>
 </RCC>

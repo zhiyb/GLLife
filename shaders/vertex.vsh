@@ -3,7 +3,6 @@
 layout (location = 0) in ivec2 vertex;
 uniform ivec2 vpSize;	// View port size
 uniform ivec2 texSize;	// Texture size
-uniform mat4 projection;
 
 out vec2 texCoord;
 
