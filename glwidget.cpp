@@ -7,8 +7,8 @@
 
 #define RES_SHADER_PFX	":/shaders/"
 #define MOVESTEP	10
-#define BLOCK_SIZE_W	1550
-#define BLOCK_SIZE_H	800
+#define BLOCK_SIZE_W	1024
+#define BLOCK_SIZE_H	1024
 #define REPORT_FPS_ITVL	2000
 
 GLWidget::GLWidget(QWidget *parent) : QOpenGLWidget(parent)
@@ -22,7 +22,7 @@ GLWidget::GLWidget(QWidget *parent) : QOpenGLWidget(parent)
 
 	QSurfaceFormat fmt = format();
 	fmt.setSamples(0);
-	fmt.setVersion(4, 0);
+	fmt.setVersion(3, 3);
 	fmt.setOption(0);
 	fmt.setProfile(QSurfaceFormat::CoreProfile);
 	fmt.setDepthBufferSize(0);
@@ -75,6 +75,7 @@ void GLWidget::initializeGL()
 
 	// Initialise binarization program
 	// Using the same set of vertex data as the render program
+	// And hopefully the same attrib & uniform location?
 	bin = render;
 	shader_info_t bin_shaders[] = {
 		{GL_VERTEX_SHADER, RES_SHADER_PFX "vertex.vsh"},
@@ -89,6 +90,7 @@ void GLWidget::initializeGL()
 
 	// Initialise iteration program
 	// Using the same set of vertex data as the render program
+	// And hopefully the same attrib & uniform location?
 	iteration = render;
 	shader_info_t it_shaders[] = {
 		{GL_VERTEX_SHADER, RES_SHADER_PFX "vertex.vsh"},

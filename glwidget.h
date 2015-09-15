@@ -2,9 +2,9 @@
 #define GLWIDGET_H
 
 #include <QtWidgets>
-#include <QOpenGLFunctions_4_0_Core>
+#include <QOpenGLFunctions_3_3_Core>
 
-class GLWidget : public QOpenGLWidget, protected QOpenGLFunctions_4_0_Core
+class GLWidget : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core
 {
 	Q_OBJECT
 public:

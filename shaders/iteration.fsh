@@ -1,7 +1,7 @@
-#version 430 core
+#version 330 core
 // https://en.wikipedia.org/wiki/Conway's_Game_of_Life
 
-layout (location = 0) out vec4 fragColour;
+layout(location = 0) out vec4 fragColour;
 
 in vec2 texCoord;
 uniform sampler2D tex;

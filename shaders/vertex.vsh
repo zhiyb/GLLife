@@ -1,11 +1,11 @@
-#version 430 core
+#version 330 core
 
-layout (location = 0) in ivec2 vertex;
+in ivec2 vertex;
 
-layout (location = 0) uniform ivec2 vpSize;	// View port size
-layout (location = 1) uniform ivec2 texSize;	// Texture size
-layout (location = 2) uniform int zoom;		// Zomming
-layout (location = 3) uniform vec2 move;	// Movement / offset
+uniform ivec2 vpSize;	// View port size
+uniform ivec2 texSize;	// Texture size
+uniform int zoom;		// Zomming
+uniform vec2 move;	// Movement / offset
 
 out vec2 texCoord;
 
