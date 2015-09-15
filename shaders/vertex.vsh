@@ -11,6 +11,6 @@ out vec2 texCoord;
 
 void main()
 {
-	gl_Position = vec4((vec2(vertex) - move * 2. / texSize) * pow(2, -zoom) * (vec2(texSize) / vec2(vpSize)), 0., 1.);
+	gl_Position = vec4((vec2(vertex) - move * 2. / texSize) * pow(2, zoom) * (vec2(texSize) / vec2(vpSize)), 0., 1.);
 	texCoord = (vertex + ivec2(1, 1)) / ivec2(2, 2);
 }

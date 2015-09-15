@@ -170,20 +170,6 @@ void GLWidget::resizeGL(int w, int h)
 
 void GLWidget::paintGL()
 {
-#if 0
-	double posX = (data.moveX + 1.) * float(DIM / 2);
-	double posY = (data.moveY - 1.) * float(DIM / 2) * -1.;
-	glUniform1ui(data.loc.dim, DIM);
-	glUniform1f(data.loc.zoom, data.zoom);
-	glUniform2f(data.loc.position, posX, posY);
-	glVertexAttribPointer(data.loc.vertex, 2, GL_FLOAT, GL_FALSE, 0, data.vertex.constData());
-
-	if (data.loc.animation != -1 && !data.pause) {
-		glUniform1f((float)data.loc.animation, QTime::currentTime().msec() / 1000.);
-		update();
-	}
-#endif
-
 	if (step == 0)	// If no off-screen rendering required
 		goto render;
 
@@ -245,29 +231,34 @@ void GLWidget::timerEvent(QTimerEvent *e)
 
 void GLWidget::wheelEvent(QWheelEvent *e)
 {
-	zoom += -e->angleDelta().y() / 120;
+	e->accept();
+	zoom += e->angleDelta().y() / 120;
 	updateTitle();
 	update();
-	QOpenGLWidget::wheelEvent(e);
 }
 
 void GLWidget::mousePressEvent(QMouseEvent *e)
 {
-	prevPos = e->pos();
 	e->accept();
-	QOpenGLWidget::mousePressEvent(e);
+	if (QGuiApplication::keyboardModifiers() & Qt::ShiftModifier)
+		drawPoint(mapToTexture(e->pos()));
+	prevPos = e->pos();
 }
 
 void GLWidget::mouseMoveEvent(QMouseEvent *e)
 {
+	e->accept();
+	if (QGuiApplication::keyboardModifiers() & Qt::ShiftModifier) {
+		drawPoint(mapToTexture(e->pos()));
+		prevPos = e->pos();
+		return;
+	}
 	QPointF p = e->pos() - prevPos;
-	move[0] += -p.x() * pow(2, zoom);
-	move[1] += p.y() * pow(2, zoom);
+	move[0] += -p.x() * pow(2, -zoom);
+	move[1] += p.y() * pow(2, -zoom);
 	prevPos = e->pos();
 	updateTitle();
 	update();
-	e->accept();
-	QOpenGLWidget::mouseMoveEvent(e);
 }
 
 void GLWidget::keyPressEvent(QKeyEvent *e)
@@ -307,33 +298,43 @@ void GLWidget::keyPressEvent(QKeyEvent *e)
 		qApp->quit();
 		return;
 	case Qt::Key_Up:
-		move[1] += MOVESTEP * pow(2, zoom);
+		move[1] += MOVESTEP * pow(2, -zoom);
 		break;
 	case Qt::Key_Down:
-		move[1] -= MOVESTEP * pow(2, zoom);
+		move[1] -= MOVESTEP * pow(2, -zoom);
 		break;
 	case Qt::Key_Left:
-		move[0] -= MOVESTEP * pow(2, zoom);
+		move[0] -= MOVESTEP * pow(2, -zoom);
 		break;
 	case Qt::Key_Right:
-		move[0] += MOVESTEP * pow(2, zoom);
+		move[0] += MOVESTEP * pow(2, -zoom);
 		break;
 	case '+':	// Zoom in
 	case '=':
-		zoom--;
+		zoom++;
 		break;
 	case '-':	// Zoom out
 	case '_':
-		zoom++;
+		zoom--;
 		break;
 	default:
-		goto skip;
+		return;
 	};
 	updateTitle();
 	update();
 	e->accept();
-skip:
-	QOpenGLWidget::keyPressEvent(e);
+}
+
+QPoint GLWidget::mapToTexture(QPoint scr)
+{
+	QVector2D pos(scr.x(), height() - scr.y()), texSize(BLOCK_SIZE_W, BLOCK_SIZE_H), vpSize(width(), height());
+	QVector2D res(((pos - vpSize / 2.) * pow(2, -zoom) + QVector2D(move[0], move[1])) * (texSize / vpSize));
+	return QPoint(res.x(), res.y());
+}
+
+void GLWidget::drawPoint(QPoint pos)
+{
+	qDebug() << __func__ << pos;
 }
 
 void GLWidget::updateTitle()
@@ -347,7 +348,7 @@ void GLWidget::updateTitle()
 		reportFPS.counter = 0;
 	}
 	emit titleUpdate(tr("GLLife <(%1, %2) * %3> %4 FPS %5")
-			 .arg(move[0]).arg(move[1]).arg(1. / pow(2, zoom)).arg(reportFPS.fps)
+			 .arg(move[0]).arg(move[1]).arg(pow(2, zoom)).arg(reportFPS.fps)
 			 .arg(timerID == 0 ? tr("[Paused]") : tr("")));
 }
 

@@ -34,6 +34,8 @@ private:
 		const char *path;
 	};
 
+	QPoint mapToTexture(QPoint scr);
+	void drawPoint(QPoint pos);
 	void updateTitle();
 	GLuint loadShader(GLenum type, const QByteArray& context);
 	GLuint loadShaderFile(GLenum type, QString path);
