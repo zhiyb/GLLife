@@ -217,6 +217,13 @@ render:
 	glClear(GL_COLOR_BUFFER_BIT);
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 	glFlush();
+
+	// Computation time report
+	if (!start.isNull()) {
+		QTime now(QTime::currentTime()), from(start);
+		start = QTime();
+		QMessageBox::information(this, tr("GLLife"), tr("Computation takes %1.%2 seconds.").arg(from.secsTo(now)).arg(from.msecsTo(now) % 1000));
+	}
 }
 
 void GLWidget::wheelEvent(QWheelEvent *e)
@@ -255,9 +262,12 @@ void GLWidget::keyPressEvent(QKeyEvent *e)
 	case 's':
 	case 'S':
 	{
-		int steps = QInputDialog::getInt(this, "Iteration steps", "Please specify iteration steps:", 0, 0);
-		if (steps)
+		int steps = QInputDialog::getInt(this, tr("GLLife"), tr("Please specify iteration steps:"), 0, 0);
+		if (steps) {
 			step += steps;
+			if (steps >= 100)
+				start = QTime::currentTime();
+		}
 		break;
 	}
 	case 'r':	// Refresh

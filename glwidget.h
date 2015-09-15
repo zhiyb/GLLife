@@ -85,6 +85,7 @@ private:
 	GLfloat move[2];
 	GLuint step;
 	QPoint prevPos;
+	QTime start;
 };
 
 #endif // GLWIDGET_H
