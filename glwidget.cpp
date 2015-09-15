@@ -8,6 +8,7 @@
 #define RES_SHADER_PFX	":/shaders/"
 #define MOVESTEP	10
 #define BLOCK_SIZE	1024
+#define REPORT_FPS_ITVL	2000
 
 GLWidget::GLWidget(QWidget *parent) : QOpenGLWidget(parent)
 {
@@ -16,6 +17,7 @@ GLWidget::GLWidget(QWidget *parent) : QOpenGLWidget(parent)
 	move[1] = 0;
 	step = 0;
 	framebuffer.def = 0;
+	timerID = 0;
 
 	QSurfaceFormat fmt = format();
 	fmt.setSamples(0);
@@ -26,6 +28,7 @@ GLWidget::GLWidget(QWidget *parent) : QOpenGLWidget(parent)
 	fmt.setStencilBufferSize(0);
 	fmt.setAlphaBufferSize(0);
 	fmt.setSamples(0);
+	fmt.setSwapBehavior(QSurfaceFormat::SingleBuffer);
 	setFormat(fmt);
 	QSurfaceFormat::setDefaultFormat(fmt);
 	setFormat(fmt);
@@ -152,6 +155,7 @@ void GLWidget::initializeGL()
 	glFlush();
 
 	updateTitle();
+	startTimer(REPORT_FPS_ITVL);	// FPS report timer
 }
 
 void GLWidget::resizeGL(int w, int h)
@@ -219,11 +223,21 @@ render:
 	glFlush();
 
 	// Computation time report
-	if (!start.isNull()) {
-		QTime now(QTime::currentTime()), from(start);
-		start = QTime();
-		QMessageBox::information(this, tr("GLLife"), tr("Computation takes %1.%2 seconds.").arg(from.secsTo(now)).arg(from.msecsTo(now) % 1000));
+	if (!timer.isNull()) {
+		int msec = timer.elapsed();
+		timer = QTime();
+		QMessageBox::information(this, tr("GLLife"), tr("Computation takes %1 seconds.").arg((float)msec / 1000.));
 	}
+	reportFPS.counter++;
+}
+
+void GLWidget::timerEvent(QTimerEvent *e)
+{
+	if (e->timerId() == timerID) {
+		step++;
+		update();
+	} else	// FPS report timer
+		updateTitle();
 }
 
 void GLWidget::wheelEvent(QWheelEvent *e)
@@ -256,17 +270,28 @@ void GLWidget::mouseMoveEvent(QMouseEvent *e)
 void GLWidget::keyPressEvent(QKeyEvent *e)
 {
 	switch (e->key()) {
-	case '.':	// Iteration 1 step
+	case ' ':	// Iteration 1 step
 		step++;
 		break;
-	case 's':
+	case 'a':	// Automatic iteration
+	case 'A':
+		if (timerID) {
+			killTimer(timerID);
+			timerID = 0;
+		} else {
+			int itvl = QInputDialog::getInt(this, tr("GLLife"), tr("Please specify iteration interval (ms):"), 0, 0);
+			if (itvl)
+				timerID = startTimer(itvl);
+		}
+		break;
+	case 's':	// Skip multiple iterations
 	case 'S':
 	{
 		int steps = QInputDialog::getInt(this, tr("GLLife"), tr("Please specify iteration steps:"), 0, 0);
 		if (steps) {
 			step += steps;
 			if (steps >= 100)
-				start = QTime::currentTime();
+				timer.start();
 		}
 		break;
 	}
@@ -278,10 +303,6 @@ void GLWidget::keyPressEvent(QKeyEvent *e)
 	case Qt::Key_Escape:
 		qApp->quit();
 		return;
-	case 'p':	// Pause
-	case 'P':
-		pause = !pause;
-		break;
 	case Qt::Key_Up:
 		move[1] += MOVESTEP * pow(2, zoom);
 		break;
@@ -314,9 +335,17 @@ skip:
 
 void GLWidget::updateTitle()
 {
-	emit titleUpdate(tr("GLLife <(%1, %2) * %3> %4")
-			 .arg(move[0]).arg(move[1]).arg(1. / pow(2, zoom))
-			 .arg(pause ? tr("[Paused] ") : tr("")));
+	if (reportFPS.timer.isNull()) {
+		reportFPS.fps = 0.;
+		reportFPS.timer.start();
+		reportFPS.counter = 0;
+	} else if (reportFPS.timer.elapsed() >= REPORT_FPS_ITVL) {
+		reportFPS.fps = (float)(reportFPS.counter * 1000) / (float)reportFPS.timer.restart();
+		reportFPS.counter = 0;
+	}
+	emit titleUpdate(tr("GLLife <(%1, %2) * %3> %4 FPS %5")
+			 .arg(move[0]).arg(move[1]).arg(1. / pow(2, zoom)).arg(reportFPS.fps)
+			 .arg(timerID == 0 ? tr("[Paused]") : tr("")));
 }
 
 GLuint GLWidget::loadShader(GLenum type, const QByteArray& context)

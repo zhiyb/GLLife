@@ -22,6 +22,7 @@ private:
 	void renderBinarized(GLuint texture, GLuint x, GLuint y);
 
 protected:
+	void timerEvent(QTimerEvent *e);
 	void wheelEvent(QWheelEvent *e);
 	void mousePressEvent(QMouseEvent *e);
 	void mouseMoveEvent(QMouseEvent *e);
@@ -80,12 +81,18 @@ private:
 		GLuint off;	// Off-screen rendering framebuffer (computation)
 	} framebuffer;
 
-	bool pause;
+	struct report_fps_t {
+		QTime timer;
+		unsigned int counter;
+		float fps;
+	} reportFPS;
+
 	GLint zoom;
 	GLfloat move[2];
 	GLuint step;
 	QPoint prevPos;
-	QTime start;
+	QTime timer;
+	int timerID;
 };
 
 #endif // GLWIDGET_H
