@@ -4,7 +4,15 @@
 #include <QtWidgets>
 #include <QOpenGLFunctions_3_3_Core>
 
-class GLWidget : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core
+#define OPENGL_VERSION_MAJOR	3
+#define OPENGL_VERSION_MINOR	3
+#define OPENGL_VERSION		"3.3"
+
+#define OPENGL_FUNC(a, b)	QOpenGLFunctions_##a##_##b##_Core
+#define OPENGL_FUNCTIONS(a, b)	OPENGL_FUNC(a, b)
+
+class GLWidget : public QOpenGLWidget,
+		protected OPENGL_FUNCTIONS(OPENGL_VERSION_MAJOR, OPENGL_VERSION_MINOR)
 {
 	Q_OBJECT
 public:
@@ -34,9 +42,12 @@ private:
 		const char *path;
 	};
 
-	QPoint mapToTexture(QPoint scr);
-	void drawPoint(QPoint pos);
+	QVector2D mapToTexture(QPoint pos);
+	QVector2D mapToTexture(QVector2D vp);
+	void renderRegion(QRect region = QRect());
+	void drawPoint(QVector2D pos, bool death);
 	void updateTitle();
+	void setTexSwizzle(GLint a, GLint r, GLint g, GLint b);
 	GLuint loadShader(GLenum type, const QByteArray& context);
 	GLuint loadShaderFile(GLenum type, QString path);
 	GLuint loadShaders(shader_info_t *shaders);
@@ -44,12 +55,11 @@ private:
 
 	struct vertex_loc_t {
 		GLuint vpSize, texSize, zoom, move;
-		GLuint vertex;
+		GLuint vertex, texVertex;
 	};
 
 	struct vertex_data_t {
 		GLuint vao;	// Vertex array object
-		GLuint ubo;	// Uniform buffer object
 	};
 
 	struct program_t {
@@ -57,6 +67,8 @@ private:
 		vertex_data_t data;
 		GLuint program;
 	};
+
+	GLuint genGenericProgram(program_t *program, const char *fsh);
 
 	program_t bin;		// Binarization
 	program_t render;	// Render to screen
@@ -67,7 +79,9 @@ private:
 			GLuint width, height;
 			GLuint orig;
 			GLuint bin;
-		} debug;
+		} demo;
+
+		GLuint point;
 	} texture;
 
 	struct buffer_t {
@@ -89,12 +103,31 @@ private:
 		float fps;
 	} reportFPS;
 
+	union intPack_t {
+		int64_t i64;
+		struct i32Pack_t {
+			int32_t x;
+			int32_t y;
+		} i32;
+	};
+
+	struct draw_t {
+		bool isEmpty() {return life.isEmpty() && death.isEmpty();}
+
+		QSet<int64_t> life, death;	// Use intPack for conversion
+	} draw;
+
 	GLint zoom;
 	GLfloat move[2];
 	GLuint step;
 	QPoint prevPos;
 	QTime timer;
 	int timerID;
+
+	static const struct vertices_t {
+		GLfloat draw[4][2];
+		GLint texture[4][2];
+	} vertices;
 };
 
 #endif // GLWIDGET_H
