@@ -86,6 +86,7 @@ void GLWidget::initializeGL()
 	glBindTexture(GL_TEXTURE_2D, texture.demo.bin);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 	setTexSwizzle(GL_ONE, GL_ZERO, GL_RED, GL_ZERO);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, texture.demo.width, texture.demo.height, 0, GL_RED, GL_UNSIGNED_BYTE, 0);
 
@@ -136,7 +137,8 @@ void GLWidget::initializeGL()
 	glBindVertexArray(render.data.vao);
 	glBindTexture(GL_TEXTURE_2D, texture.demo.bin);
 	glUniform2i(render.loc.vpSize, BLOCK_SIZE_W, BLOCK_SIZE_H);
-	glUniform2i(render.loc.texSize, texture.demo.width, texture.demo.height);
+	glUniform2i(render.loc.texSize, BLOCK_SIZE_W, BLOCK_SIZE_H);
+	//glUniform2i(render.loc.texSize, texture.demo.width, texture.demo.height);
 	glUniform1i(render.loc.zoom, 0);
 	glUniform2f(render.loc.move, 0., 0.);
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);

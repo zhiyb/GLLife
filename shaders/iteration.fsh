@@ -14,23 +14,22 @@ bool died(vec4 clr)
 int neighbours()
 {
 	int cnt = 0;
-	ivec2 texCrd = ivec2(texCoord);
 	// The offset value must be a constant expression
-	cnt += died(texelFetchOffset(tex, texCrd, 0, ivec2(-1, -1))) ? 0 : 1;
-	cnt += died(texelFetchOffset(tex, texCrd, 0, ivec2(-1, 0))) ? 0 : 1;
-	cnt += died(texelFetchOffset(tex, texCrd, 0, ivec2(-1, 1))) ? 0 : 1;
-	cnt += died(texelFetchOffset(tex, texCrd, 0, ivec2(0, -1))) ? 0 : 1;
-	//cnt += died(texelFetchOffset(tex, texCrd, 0, ivec2(0, 0))) ? 0 : 1;
-	cnt += died(texelFetchOffset(tex, texCrd, 0, ivec2(0, 1))) ? 0 : 1;
-	cnt += died(texelFetchOffset(tex, texCrd, 0, ivec2(1, -1))) ? 0 : 1;
-	cnt += died(texelFetchOffset(tex, texCrd, 0, ivec2(1, 0))) ? 0 : 1;
-	cnt += died(texelFetchOffset(tex, texCrd, 0, ivec2(1, 1))) ? 0 : 1;
+	cnt += died(textureOffset(tex, texCoord, ivec2(-1, -1))) ? 0 : 1;
+	cnt += died(textureOffset(tex, texCoord, ivec2(-1, 0))) ? 0 : 1;
+	cnt += died(textureOffset(tex, texCoord, ivec2(-1, 1))) ? 0 : 1;
+	cnt += died(textureOffset(tex, texCoord, ivec2(0, -1))) ? 0 : 1;
+	//cnt += died(textureOffset(tex, texCoord, ivec2(0, 0))) ? 0 : 1;
+	cnt += died(textureOffset(tex, texCoord, ivec2(0, 1))) ? 0 : 1;
+	cnt += died(textureOffset(tex, texCoord, ivec2(1, -1))) ? 0 : 1;
+	cnt += died(textureOffset(tex, texCoord, ivec2(1, 0))) ? 0 : 1;
+	cnt += died(textureOffset(tex, texCoord, ivec2(1, 1))) ? 0 : 1;
 	return cnt;
 }
 
 void main()
 {
-	fragColour = texelFetch(tex, ivec2(texCoord), 0);
+	fragColour = texture(tex, texCoord);
 	int nei = neighbours();
 	if (died(fragColour)) {
 		if (nei == 3)			// Reproduction

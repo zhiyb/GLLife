@@ -13,6 +13,6 @@ float luminance(in vec3 colour)
 
 void main()
 {
-	bool y = luminance(texelFetch(tex, ivec2(texCoord), 0).rgb) > 0.5;
+	bool y = luminance(texture(tex, texCoord).rgb) > 0.5;
 	fragColour = vec4(y, y, y, 1.0);
 }
