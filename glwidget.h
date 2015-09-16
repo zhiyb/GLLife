@@ -2,11 +2,11 @@
 #define GLWIDGET_H
 
 #include <QtWidgets>
-#include <QOpenGLFunctions_3_3_Core>
+#include <QOpenGLFunctions_4_0_Core>
 
-#define OPENGL_VERSION_MAJOR	3
-#define OPENGL_VERSION_MINOR	3
-#define OPENGL_VERSION		"3.3"
+#define OPENGL_VERSION_MAJOR	4
+#define OPENGL_VERSION_MINOR	0
+#define OPENGL_VERSION		"4.0"
 
 #define OPENGL_FUNC(a, b)	QOpenGLFunctions_##a##_##b##_Core
 #define OPENGL_FUNCTIONS(a, b)	OPENGL_FUNC(a, b)
